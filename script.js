@@ -1,5 +1,3 @@
-
-
 // Configuração do Firebase
 const firebaseConfig = {
     apiKey: "AIzaSyCzYNZNSqCZkvtzqC8-JIIKExtGVKJC6tc",
@@ -12,7 +10,7 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+const db = firebase.database();
 const storage = firebase.storage();
 
 // Adicionar produto
@@ -24,21 +22,27 @@ document.getElementById('productForm').addEventListener('submit', async (e) => {
     const whatsapp = document.getElementById('whatsappNumber').value;
     const file = document.getElementById('productImage').files[0];
 
-    // Upload da imagem
-    const storageRef = storage.ref(`images/${file.name}`);
-    await storageRef.put(file);
-    const imageUrl = await storageRef.getDownloadURL();
+    try {
+        // Upload da imagem
+        const storageRef = storage.ref(`images/${file.name}`);
+        await storageRef.put(file);
+        const imageUrl = await storageRef.getDownloadURL();
 
-    // Salvar dados do produto no Firestore
-    await db.collection('produtos').add({
-        name,
-        description,
-        whatsapp,
-        imageUrl
-    });
+        // Salvar dados do produto no Realtime Database
+        await db.ref('produtos/').push({
+            name: name,
+            description: description,
+            whatsapp: whatsapp,
+            imageUrl: imageUrl
+        });
 
-    document.getElementById('productForm').reset();
-    loadProducts();
+        console.log('Produto adicionado com sucesso!');
+        document.getElementById('productForm').reset();
+        loadProducts();
+
+    } catch (error) {
+        console.error('Erro ao adicionar produto:', error);
+    }
 });
 
 // Carregar produtos
@@ -46,18 +50,20 @@ async function loadProducts() {
     const productList = document.getElementById('productList');
     productList.innerHTML = '';
 
-    const snapshot = await db.collection('produtos').get();
-    snapshot.forEach(doc => {
-        const data = doc.data();
-        productList.innerHTML += `
-            <div>
-                <h3>${data.name}</h3>
-                <p>${data.description}</p>
-                <p>Contato: <a href="https://wa.me/${data.whatsapp}">${data.whatsapp}</a></p>
-                <img src="${data.imageUrl}" alt="${data.name}" style="width: 100px; height: auto;">
-            </div>
-        `;
+    db.ref('produtos/').once('value', (snapshot) => {
+        snapshot.forEach((childSnapshot) => {
+            const data = childSnapshot.val();
+            productList.innerHTML += `
+                <div>
+                    <h3>${data.name}</h3>
+                    <p>${data.description}</p>
+                    <p>Contato: <a href="https://wa.me/${data.whatsapp}">${data.whatsapp}</a></p>
+                    <img src="${data.imageUrl}" alt="${data.name}" style="width: 100px; height: auto;">
+                </div>
+            `;
+        });
     });
 }
 
+// Carregar produtos ao iniciar
 loadProducts();
